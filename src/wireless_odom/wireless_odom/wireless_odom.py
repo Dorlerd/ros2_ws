@@ -3,6 +3,7 @@ from rclpy.node import Node
 from control.matlab import *
 from rclpy.clock import Clock
 import math
+from geometry_msgs.msg import TransformStamped
 
 from std_msgs.msg import Float32
 from geometry_msgs.msg import Vector3
@@ -22,7 +23,9 @@ def grad_to_deg(phi):
     return 3.14/180*phi
 
 def ust_to_d_phi(ust):
-    return 3.14/2 - math.atan(1/(math.tan(ust)+ 0.0000001) - 0.125/(2*0.174))
+    if ust == 0:
+        return 0 
+    return 3.14/2 - math.atan(1/(math.tan(ust)) - 0.125/(2*0.174))
 
 
 
@@ -65,7 +68,7 @@ class Subscriber(Node):
         dt = time[0] - self.prev_t[0] + time[1]/(10**9) - self.prev_t[1]/(10**9)
         
         pos_wheel = msg.data
-        v_pos_wheel = self.r_wheel*pos_wheel
+        v_pos_wheel = self.r_wheel*pos_wheel*2*3.14
 
         self.x += v_pos_wheel*math.cos(self.phi)*dt
         self.y += v_pos_wheel*math.sin(self.phi)*dt
@@ -77,6 +80,19 @@ class Subscriber(Node):
         data.z = self.phi
 
         self.publisher_.publish(data)
+
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = 'odom'
+        t.child_frame_id = 'base_link'
+        t.transform.translation.x = self.x
+        t.transform.translation.y = self.y
+        t.transform.translation.z = 0.0
+        t.transform.rotation.x = 0.0
+        t.transform.rotation.y = 0.0
+        t.transform.rotation.z = self.phi
+
+        self.tf_broadcaster.sendTransform(t)
 
         self.prev_t = time
 
